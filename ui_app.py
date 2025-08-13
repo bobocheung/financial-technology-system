@@ -10,7 +10,7 @@ from src.data.fetch_hk_data import fetch_hk_daily, load_cached
 from src.visualize.plot import kline_with_mas
 from src.backtest.run_backtest import run_backtest_from_dataframe
 from src.visualize.handdrawn_theme import HANDDRAWN_CSS
-from src.risk.predict_model import conservative_position_limit_from_quantiles
+from src.risk.predict_model import conservative_position_limit_from_quantiles, stop_loss_from_vol_and_quantile
 from src.backtest.scan_params import scan_sma_grid
 
 
@@ -115,11 +115,16 @@ def main():
             explain = st.toggle("顯示新手註解", value=True)
             show_cards = st.toggle("顯示『建議解讀』小卡", value=True)
             show_signals = st.toggle("圖上標註買/賣與盈虧區間", value=True)
+            replay_until = st.slider("交易回放：顯示至某日期", min_value=0, max_value=100, value=100, help="向左拖動只顯示較早期間的交易標註，便於逐日回看")
             overlays = st.multiselect("疊加指標 (可複選)", options=["EMA","BOLL","RSI"], default=["EMA","BOLL"]) 
             if st.button("生成圖表"):
                 try:
                     symbol = normalize_hk_symbol(st.session_state.get("last_symbol", "700"))
                     df = load_cached(symbol)
+                    # 依回放滑桿裁切資料
+                    if replay_until < 100:
+                        cut_idx = int(len(df) * replay_until / 100)
+                        df = df.iloc[: max(30, cut_idx)]
                     out = kline_with_mas(
                         df, symbol,
                         ma_periods=ma, explain=explain,
@@ -143,6 +148,25 @@ def main():
                             st.warning("偏空環境：減少倉位至 0%~5%，或僅觀察不交易")
                         elif "盤整" in last_tips:
                             st.info("盤整環境：耐心等待突破後再行動，避免過度進出")
+
+                        # 動態風控（讀取 risk_panel 與分位數）
+                        import os, pandas as pd
+                        panel_path = OUTPUTS_DIR / f"risk_panel_{symbol}.csv"
+                        q_path = OUTPUTS_DIR / f"risk_quantiles_{symbol}.csv"
+                        ann_vol = None
+                        q05 = None
+                        if panel_path.exists():
+                            panel = pd.read_csv(panel_path)
+                            if not panel.empty:
+                                ann_vol = float(panel.iloc[0].get('ann_vol', None))
+                        if q_path.exists():
+                            qs = pd.read_csv(q_path)
+                            qmap = {float(q): float(v) for q, v in zip(qs['quantile'], qs['prediction'])}
+                            q05 = qmap.get(0.05) or qmap.get(0.1)
+                        if ann_vol is not None or q05 is not None:
+                            cap = conservative_position_limit_from_quantiles(qs) if q_path.exists() else 0.1
+                            sl = stop_loss_from_vol_and_quantile(ann_vol or 0.2, q05)
+                            st.markdown(f"建議倉位上限：約 {int(cap*100)}% | 建議止損：{int(sl*100)}% （依據年化波動與分位數）")
                 except Exception as e:
                     st.error(str(e))
             st.markdown("</div>", unsafe_allow_html=True)
@@ -156,6 +180,7 @@ def main():
                 fast_range = st.text_input("fast 範圍（逗號分隔）", value="5,10,20")
             with c2:
                 slow_range = st.text_input("slow 範圍（逗號分隔）", value="30,60,120")
+            apply_params = st.button("套用到主圖")
             if st.button("生成熱力圖"):
                 import plotly.express as px
                 try:
@@ -171,6 +196,11 @@ def main():
                         p2 = px.density_heatmap(res, x="fast", y="slow", z="max_dd", color_continuous_scale="RdBu", title="Max Drawdown 熱力圖")
                         st.plotly_chart(p1, use_container_width=True)
                         st.plotly_chart(p2, use_container_width=True)
+                        if apply_params and not res.empty:
+                            best = res.sort_values("sharpe", ascending=False).iloc[0]
+                            st.session_state["best_fast"] = int(best["fast"])
+                            st.session_state["best_slow"] = int(best["slow"])
+                            st.info(f"已套用最佳參數：fast={int(best['fast'])}, slow={int(best['slow'])}；請回到上方主圖重新生成。")
                 except Exception as e:
                     st.error(str(e))
             st.markdown("</div>", unsafe_allow_html=True)

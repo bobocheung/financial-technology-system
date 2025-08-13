@@ -43,6 +43,9 @@ HANDDRAWN_CSS = """
     background: #FFF9E9 !important; color:#1b1b1b !important; border:2px dotted #2f2f2f !important;
   }
   .stMultiSelect [data-baseweb="tag"] * { color:#1b1b1b !important; }
+
+  /* 高亮步驟 */
+  .highlight { border-color:#FF9F0A !important; box-shadow: 4px 4px 0 #2f2f2f, 0 0 0 4px #FFE8C2 inset; }
   .stToggle { border:2px dashed #2f2f2f !important; }
 </style>
 """
