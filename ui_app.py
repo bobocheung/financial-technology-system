@@ -16,10 +16,14 @@ from src.backtest.scan_params import scan_sma_grid
 
 def _init_session_state() -> None:
     defaults = {
-        "task_fetch": False,
-        "task_plot": False,
-        "task_backtest": False,
+        "done_fetch": False,
+        "done_plot": False,
+        "done_backtest": False,
         "last_symbol": "700",
+        "guide_enabled": False,
+        "guide_step": 1,
+        "replay_value": 100,
+        "replay_playing": False,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -72,18 +76,18 @@ def main():
     )
     st.sidebar.markdown("---")
     st.sidebar.subheader("新手任務")
-    st.sidebar.checkbox("① 下載一檔股票資料", key="task_fetch")
-    st.sidebar.checkbox("② 生成一張互動圖", key="task_plot")
-    st.sidebar.checkbox("③ 跑一次回測", key="task_backtest")
-    progress = sum([st.session_state.task_fetch, st.session_state.task_plot, st.session_state.task_backtest]) / 3
+    st.sidebar.checkbox("① 下載一檔股票資料", key="chk_fetch", value=st.session_state.done_fetch, disabled=True)
+    st.sidebar.checkbox("② 生成一張互動圖", key="chk_plot", value=st.session_state.done_plot, disabled=True)
+    st.sidebar.checkbox("③ 跑一次回測", key="chk_backtest", value=st.session_state.done_backtest, disabled=True)
+    progress = sum([st.session_state.done_fetch, st.session_state.done_plot, st.session_state.done_backtest]) / 3
     st.sidebar.progress(progress)
     # 導覽「下一步」按鈕：依任務狀態切換 section
     if st.sidebar.button("下一步 →"):
-        if not st.session_state.task_fetch:
+        if not st.session_state.done_fetch:
             section = "下載資料"
-        elif not st.session_state.task_plot:
+        elif not st.session_state.done_plot:
             section = "視覺化"
-        elif not st.session_state.task_backtest:
+        elif not st.session_state.done_backtest:
             section = "回測"
 
     if section in ("全部", "下載資料"):
@@ -101,7 +105,7 @@ def main():
             try:
                 path = fetch_hk_daily(symbol_in, start=start or None, end=end or None)
                 st.success(f"已下載：{path}")
-                st.session_state.task_fetch = True
+                st.session_state.done_fetch = True
                 st.session_state.last_symbol = normalize_hk_symbol(symbol_in)
             except Exception as e:
                 st.error(str(e))
@@ -115,7 +119,16 @@ def main():
             explain = st.toggle("顯示新手註解", value=True)
             show_cards = st.toggle("顯示『建議解讀』小卡", value=True)
             show_signals = st.toggle("圖上標註買/賣與盈虧區間", value=True)
-            replay_until = st.slider("交易回放：顯示至某日期", min_value=0, max_value=100, value=100, help="向左拖動只顯示較早期間的交易標註，便於逐日回看")
+            replay_until = st.slider("交易回放：顯示至某日期", min_value=0, max_value=100, value=st.session_state.replay_value, help="向左拖動只顯示較早期間的交易標註，便於逐日回看")
+            st.session_state.replay_value = replay_until
+            # 自動播放控制
+            play, pause, fast = st.columns(3)
+            if play.button("▶ 播放"):
+                st.session_state.replay_playing = True
+            if pause.button("⏸ 暫停"):
+                st.session_state.replay_playing = False
+            if fast.button("⏭ 快轉"):
+                st.session_state.replay_value = min(100, st.session_state.replay_value + 10)
             overlays = st.multiselect("疊加指標 (可複選)", options=["EMA","BOLL","RSI"], default=["EMA","BOLL"]) 
             if st.button("生成圖表"):
                 try:
@@ -133,7 +146,7 @@ def main():
                     )
                     st.success(f"輸出：{out}")
                     st.components.v1.html(Path(out).read_text(encoding="utf-8"), height=600, scrolling=True)
-                    st.session_state.task_plot = True
+                    st.session_state.done_plot = True
                     if show_cards:
                         tips = _compute_insights(df, [int(x) for x in ma])
                         st.markdown("#### 建議解讀")
@@ -233,7 +246,7 @@ def main():
                     summ = OUTPUTS_DIR / f"backtest_{symbol}.txt"
                     if summ.exists():
                         st.text(summ.read_text(encoding="utf-8"))
-                    st.session_state.task_backtest = True
+                    st.session_state.done_backtest = True
                 except Exception as e:
                     st.error(str(e))
             st.markdown("</div>", unsafe_allow_html=True)
@@ -242,11 +255,11 @@ def main():
         with st.container():
             st.markdown("<div class='paper'>", unsafe_allow_html=True)
             st.subheader("3.1) 導覽提示")
-            if not st.session_state.task_fetch:
+            if not st.session_state.done_fetch:
                 st.info("步驟 1：先到『下載資料』區塊輸入代碼並下載")
-            elif not st.session_state.task_plot:
+            elif not st.session_state.done_plot:
                 st.info("步驟 2：到『視覺化』區塊生成圖表，勾選建議小卡")
-            elif not st.session_state.task_backtest:
+            elif not st.session_state.done_backtest:
                 st.info("步驟 3：設定參數執行回測，查看圖與摘要")
             else:
                 st.success("恭喜完成 3 步驟！可嘗試參數掃描或多標的回測")
