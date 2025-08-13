@@ -130,7 +130,7 @@ def main():
             if fast.button("⏭ 快轉"):
                 st.session_state.replay_value = min(100, st.session_state.replay_value + 10)
             overlays = st.multiselect("疊加指標 (可複選)", options=["EMA","BOLL","RSI"], default=["EMA","BOLL"]) 
-            if st.button("生成圖表"):
+            if st.button("生成圖表", key="btn_draw_chart"):
                 try:
                     symbol = normalize_hk_symbol(st.session_state.get("last_symbol", "700"))
                     df = load_cached(symbol)
@@ -138,11 +138,15 @@ def main():
                     if replay_until < 100:
                         cut_idx = int(len(df) * replay_until / 100)
                         df = df.iloc[: max(30, cut_idx)]
+                    # 若存在交易 CSV，供回放標註
+                    import pandas as pd, os
+                    trades_csv = OUTPUTS_DIR / f"trades_{symbol}.csv"
+                    trades_df = pd.read_csv(trades_csv) if trades_csv.exists() else None
                     out = kline_with_mas(
                         df, symbol,
                         ma_periods=ma, explain=explain,
                         show_signals=show_signals, show_trade_pnl=show_signals,
-                        overlay_indicators=overlays,
+                        overlay_indicators=overlays, trades_df=trades_df,
                     )
                     st.success(f"輸出：{out}")
                     st.components.v1.html(Path(out).read_text(encoding="utf-8"), height=600, scrolling=True)
@@ -251,18 +255,34 @@ def main():
                     st.error(str(e))
             st.markdown("</div>", unsafe_allow_html=True)
 
-        # 逐步高亮導覽（簡版）：提示下一步
+        # 逐步高亮導覽：高亮與貼紙提示
         with st.container():
             st.markdown("<div class='paper'>", unsafe_allow_html=True)
             st.subheader("3.1) 導覽提示")
-            if not st.session_state.done_fetch:
-                st.info("步驟 1：先到『下載資料』區塊輸入代碼並下載")
-            elif not st.session_state.done_plot:
-                st.info("步驟 2：到『視覺化』區塊生成圖表，勾選建議小卡")
-            elif not st.session_state.done_backtest:
-                st.info("步驟 3：設定參數執行回測，查看圖與摘要")
+            st.toggle("啟用一步一步引導", key="guide_enabled")
+            step = st.session_state.get("guide_step", 1)
+            c1, c2 = st.columns([1,1])
+            if c1.button("⬅ 上一步"):
+                st.session_state.guide_step = max(1, step-1)
+            if c2.button("下一步 ➜"):
+                st.session_state.guide_step = min(3, step+1)
+
+            if st.session_state.guide_enabled:
+                if st.session_state.guide_step == 1:
+                    st.info("步驟 1：到『下載資料』區塊輸入代碼並下載。貼士：輸入 700/0700/0700.HK 皆可。")
+                elif st.session_state.guide_step == 2:
+                    st.info("步驟 2：到『視覺化』勾選『建議解讀』與『圖上標註』後按『生成圖表』。")
+                elif st.session_state.guide_step == 3:
+                    st.info("步驟 3：到『回測』設定 fast/slow 與成本，執行後查看圖與摘要。")
             else:
-                st.success("恭喜完成 3 步驟！可嘗試參數掃描或多標的回測")
+                if not st.session_state.done_fetch:
+                    st.info("步驟 1：先到『下載資料』區塊輸入代碼並下載")
+                elif not st.session_state.done_plot:
+                    st.info("步驟 2：到『視覺化』區塊生成圖表，勾選建議小卡")
+                elif not st.session_state.done_backtest:
+                    st.info("步驟 3：設定參數執行回測，查看圖與摘要")
+                else:
+                    st.success("恭喜完成 3 步驟！可嘗試參數掃描或多標的回測")
             st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<p class='small tip'>提示：手繪風格僅做視覺親和，核心仍以清晰可讀、互動簡潔為先。</p>", unsafe_allow_html=True)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Tuple, Optional
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -17,6 +17,7 @@ def kline_with_mas(
     show_signals: bool = True,
     show_trade_pnl: bool = True,
     overlay_indicators: Iterable[str] | None = None,
+    trades_df: Optional[pd.DataFrame] = None,
 ) -> Path:
     df = df.copy().sort_values("date")
     for p in ma_periods:
@@ -60,8 +61,34 @@ def kline_with_mas(
         fig.add_trace(go.Scatter(x=df["date"], y=rsi, name="RSI(14)", yaxis="y2"))
         fig.update_layout(yaxis2=dict(overlaying="y", side="right", range=[0,100], showgrid=False, title="RSI"))
 
-    # 均線交叉點提示：以最短與最長均線示範
-    if len(list(ma_periods)) >= 2:
+    # 交易標註：優先使用 CSV 交易日誌，否則回退為均線交叉
+    if trades_df is not None and not trades_df.empty:
+        tdf = trades_df.copy()
+        tdf['entry_date'] = pd.to_datetime(tdf['entry_date'])
+        tdf['exit_date'] = pd.to_datetime(tdf['exit_date'])
+        # 僅標註落在此區間的交易
+        dmin, dmax = df['date'].min(), df['date'].max()
+        tdf = tdf[(tdf['entry_date'] >= dmin) & (tdf['entry_date'] <= dmax)]
+        # 買賣點
+        fig.add_trace(go.Scatter(
+            x=tdf['entry_date'], y=tdf['entry_price'], mode='markers+text',
+            marker=dict(symbol='triangle-up', color='#2ecc71', size=12),
+            text=['買' for _ in range(len(tdf))], textposition='top center', name='買進'))
+        fig.add_trace(go.Scatter(
+            x=tdf['exit_date'], y=tdf['exit_price'], mode='markers+text',
+            marker=dict(symbol='triangle-down', color='#e74c3c', size=12),
+            text=['賣' for _ in range(len(tdf))], textposition='bottom center', name='賣出'))
+        # 陰影與盈虧/回撤
+        for _, row in tdf.iterrows():
+            pnl = float(row.get('pnl', 0.0))
+            fig.add_vrect(x0=row['entry_date'], x1=row['exit_date'],
+                          fillcolor='#C9F7CA' if pnl >= 0 else '#FAD4D4', opacity=0.12,
+                          line_width=0, layer='below')
+            mid = row['entry_date'] + (row['exit_date'] - row['entry_date'])/2
+            fig.add_annotation(x=mid, y=float(row['exit_price']), text=f"{pnl*100:.1f}%",
+                               showarrow=False, bgcolor='#ECFDF3' if pnl>=0 else '#FDECEC',
+                               bordercolor='#2ECC71' if pnl>=0 else '#E74C3C', borderwidth=1, opacity=0.9)
+    elif len(list(ma_periods)) >= 2:
         mas = sorted(list(ma_periods))
         short, long = mas[0], mas[-1]
         s = df[f"ma{short}"]
