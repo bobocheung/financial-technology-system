@@ -11,6 +11,7 @@ from src.visualize.plot import kline_with_mas
 from src.backtest.run_backtest import run_backtest_from_dataframe
 from src.visualize.handdrawn_theme import HANDDRAWN_CSS
 from src.risk.predict_model import conservative_position_limit_from_quantiles
+from src.backtest.scan_params import scan_sma_grid
 
 
 def _init_session_state() -> None:
@@ -146,6 +147,34 @@ def main():
                     st.error(str(e))
             st.markdown("</div>", unsafe_allow_html=True)
 
+        # 參數掃描與熱力圖
+        with st.container():
+            st.markdown("<div class='paper'>", unsafe_allow_html=True)
+            st.subheader("2.1) 參數掃描與熱力圖（Sharpe / MaxDD）")
+            c1, c2 = st.columns(2)
+            with c1:
+                fast_range = st.text_input("fast 範圍（逗號分隔）", value="5,10,20")
+            with c2:
+                slow_range = st.text_input("slow 範圍（逗號分隔）", value="30,60,120")
+            if st.button("生成熱力圖"):
+                import plotly.express as px
+                try:
+                    symbol = st.session_state.get("last_symbol", "700")
+                    df = load_cached(symbol)
+                    fast_grid = [int(x) for x in fast_range.split(',') if x.strip()]
+                    slow_grid = [int(x) for x in slow_range.split(',') if x.strip()]
+                    res = scan_sma_grid(df, fast_grid, slow_grid)
+                    if res.empty:
+                        st.warning("結果為空，請調整範圍（確保 fast < slow）")
+                    else:
+                        p1 = px.density_heatmap(res, x="fast", y="slow", z="sharpe", color_continuous_scale="Viridis", title="Sharpe 熱力圖")
+                        p2 = px.density_heatmap(res, x="fast", y="slow", z="max_dd", color_continuous_scale="RdBu", title="Max Drawdown 熱力圖")
+                        st.plotly_chart(p1, use_container_width=True)
+                        st.plotly_chart(p2, use_container_width=True)
+                except Exception as e:
+                    st.error(str(e))
+            st.markdown("</div>", unsafe_allow_html=True)
+
     if section in ("全部", "回測"):
         with st.container():
             st.markdown("<div class='paper'>", unsafe_allow_html=True)
@@ -177,6 +206,20 @@ def main():
                     st.session_state.task_backtest = True
                 except Exception as e:
                     st.error(str(e))
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # 逐步高亮導覽（簡版）：提示下一步
+        with st.container():
+            st.markdown("<div class='paper'>", unsafe_allow_html=True)
+            st.subheader("3.1) 導覽提示")
+            if not st.session_state.task_fetch:
+                st.info("步驟 1：先到『下載資料』區塊輸入代碼並下載")
+            elif not st.session_state.task_plot:
+                st.info("步驟 2：到『視覺化』區塊生成圖表，勾選建議小卡")
+            elif not st.session_state.task_backtest:
+                st.info("步驟 3：設定參數執行回測，查看圖與摘要")
+            else:
+                st.success("恭喜完成 3 步驟！可嘗試參數掃描或多標的回測")
             st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<p class='small tip'>提示：手繪風格僅做視覺親和，核心仍以清晰可讀、互動簡潔為先。</p>", unsafe_allow_html=True)

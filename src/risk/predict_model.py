@@ -59,4 +59,20 @@ def conservative_position_limit_from_quantiles(result: pd.DataFrame) -> float:
     return 0.20
 
 
+def stop_loss_from_vol_and_quantile(ann_vol: float, q05: float | None) -> float:
+    """根據年化波動與 5% 分位數估算建議止損（回撤比），回傳 0~1。
+    - 高風險（ann_vol>0.4 或 q05<-3%）：8%~10%
+    - 中風險：5%~8%
+    - 低風險：3%~5%
+    """
+    sl = 0.05
+    if ann_vol >= 0.4 or (q05 is not None and q05 <= -0.03):
+        sl = 0.09
+    elif ann_vol >= 0.25 or (q05 is not None and q05 <= -0.02):
+        sl = 0.07
+    else:
+        sl = 0.04
+    return sl
+
+
 __all__ = ["predict_next_day_quantiles", "save_quantile_table"]
