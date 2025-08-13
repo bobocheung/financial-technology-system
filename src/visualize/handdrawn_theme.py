@@ -5,6 +5,8 @@ HANDDRAWN_CSS = """
   /* 手繪風格：柔和色、紙張紋理背景、略帶歪斜的邊框 */
   html, body, .main { background-color: #FAF7F2; }
   h1, h2, h3, .sketch-title { font-family: 'Patrick Hand', 'Caveat', ui-rounded, system-ui, -apple-system; letter-spacing: .5px; }
+  body, p, label, span, div { color:#1b1b1b; font-size: 16px; }
+  .contrast { color:#0d0d0d; font-weight:800; }
 
   .paper {
     background: #fff url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%228%22 height=%228%22><rect width=%228%22 height=%228%22 fill=%22%23fff%22/><circle cx=%224%22 cy=%224%22 r=%220.2%22 fill=%22%23e5e1dc%22/></svg>') repeat;
@@ -34,7 +36,9 @@ HANDDRAWN_CSS = """
   .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb] {
     border: 2px dashed #2f2f2f !important; border-radius: 12px !important;
     background: #fff !important;
+    color:#1b1b1b !important;
   }
+  .stToggle { border:2px dashed #2f2f2f !important; }
 </style>
 """
 

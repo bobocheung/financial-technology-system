@@ -82,6 +82,10 @@ def run_backtest_from_dataframe(
         f.write(f"Max Drawdown: {dd.get('max', {})}\n")
         f.write(f"Trades: {trades}\n")
 
+    # 輸出交易記錄供 UI 疊加
+    trades_csv = OUTPUTS_DIR / f"trades_{symbol}.csv"
+    import pandas as pd
+    pd.DataFrame(strat.trades).to_csv(trades_csv, index=False)
     return out_path
 
 

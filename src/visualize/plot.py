@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Tuple
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -14,6 +14,8 @@ def kline_with_mas(
     symbol: str,
     ma_periods: Iterable[int] = (20, 60, 120),
     explain: bool = False,
+    show_signals: bool = True,
+    show_trade_pnl: bool = True,
 ) -> Path:
     df = df.copy().sort_values("date")
     for p in ma_periods:
@@ -54,6 +56,63 @@ def kline_with_mas(
             hovertemplate="日期=%{x}<br>短均線下穿長均線：可能趨勢轉弱<extra></extra>",
         ))
 
+        if show_signals:
+            # 在收盤價上標註買賣箭頭
+            buy_pts = df.loc[cross_up, ["date", "close"]]
+            sell_pts = df.loc[cross_dn, ["date", "close"]]
+            fig.add_trace(go.Scatter(
+                x=buy_pts["date"], y=buy_pts["close"], mode="markers+text",
+                marker=dict(symbol="triangle-up", color="#2ecc71", size=12),
+                text=["買" for _ in range(len(buy_pts))], textposition="top center",
+                name="買進",
+                hovertemplate="買進 @ %{y:.2f}<extra></extra>",
+            ))
+            fig.add_trace(go.Scatter(
+                x=sell_pts["date"], y=sell_pts["close"], mode="markers+text",
+                marker=dict(symbol="triangle-down", color="#e74c3c", size=12),
+                text=["賣" for _ in range(len(sell_pts))], textposition="bottom center",
+                name="賣出",
+                hovertemplate="賣出 @ %{y:.2f}<extra></extra>",
+            ))
+
+        if show_trade_pnl:
+            # 計算每筆多頭交易的盈虧，並在區間中點標註百分比
+            entry_idx = None
+            for i in range(len(df)):
+                if cross_up.iloc[i] and entry_idx is None:
+                    entry_idx = i
+                elif cross_dn.iloc[i] and entry_idx is not None:
+                    seg = df.iloc[entry_idx:i + 1]
+                    entry_price = float(seg.iloc[0]["close"])
+                    exit_price = float(seg.iloc[-1]["close"])
+                    pnl = (exit_price / max(1e-9, entry_price)) - 1.0
+                    mid = seg.iloc[len(seg) // 2]
+                    # 期間陰影帶
+                    fig.add_vrect(
+                        x0=seg.iloc[0]["date"], x1=seg.iloc[-1]["date"],
+                        fillcolor="#C9F7CA" if pnl >= 0 else "#FAD4D4",
+                        opacity=0.12, line_width=0, layer="below",
+                    )
+                    fig.add_annotation(
+                        x=mid["date"], y=float(seg["close"].median()),
+                        text=f"{pnl*100:.1f}%",
+                        showarrow=False,
+                        bgcolor="#ECFDF3" if pnl >= 0 else "#FDECEC",
+                        bordercolor="#2ECC71" if pnl >= 0 else "#E74C3C",
+                        borderwidth=1,
+                        opacity=0.9,
+                    )
+                    # 區間最大回撤
+                    cummax = seg["close"].cummax()
+                    dd = (seg["close"] / cummax - 1.0).min()
+                    fig.add_annotation(
+                        x=seg.iloc[-1]["date"], y=float(seg["close"].min()),
+                        text=f"DD {dd*100:.1f}%",
+                        showarrow=False, bgcolor="#FFF7E6", bordercolor="#F5A623",
+                        borderwidth=1, opacity=0.9,
+                    )
+                    entry_idx = None
+
     fig.update_layout(
         title=f"{symbol} K線與均線",
         xaxis_title="日期",
@@ -61,6 +120,12 @@ def kline_with_mas(
         xaxis_rangeslider_visible=False,
         template="plotly_white",
         legend_title_text="圖例",
+    )
+    # 加入更友善的新手引導敘述
+    fig.add_annotation(
+        text="K線：每根顯示一日的開盤/最高/最低/收盤。 均線：MA20/60/120 是收盤價的移動平均，短線上穿長線常被視為趨勢轉強的訊號。 互動：滑鼠移動可查看 OHLC，點擊圖例可顯示/隱藏線。",
+        xref="paper", yref="paper", x=0, y=1.05, showarrow=False, align="left",
+        bgcolor="#ffffff", bordercolor="#d9d9d9", borderwidth=1, opacity=0.95
     )
 
     if explain:

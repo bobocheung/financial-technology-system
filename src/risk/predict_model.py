@@ -44,4 +44,19 @@ def save_quantile_table(result: pd.DataFrame, symbol: str) -> Path:
     return out_path
 
 
+def conservative_position_limit_from_quantiles(result: pd.DataFrame) -> float:
+    """根據分位數結果回傳建議單筆倉位上限（0~1）。
+    - 若 5% 分位數小於 -2%：風險偏高，上限 0.05
+    - 若 5% 在 -2%~0%：中性，上限 0.10
+    - 否則：較樂觀，上限 0.20
+    """
+    qmap = {float(q): float(v) for q, v in zip(result["quantile"], result["prediction"])}
+    q05 = qmap.get(0.05) or qmap.get(0.1) or 0.0
+    if q05 <= -0.02:
+        return 0.05
+    if q05 <= 0.0:
+        return 0.10
+    return 0.20
+
+
 __all__ = ["predict_next_day_quantiles", "save_quantile_table"]
