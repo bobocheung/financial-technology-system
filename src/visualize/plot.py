@@ -147,6 +147,8 @@ def kline_with_mas(
         xaxis_rangeslider_visible=False,
         template="plotly_white",
         legend_title_text="圖例",
+        height=700,
+        margin=dict(l=40, r=20, t=60, b=40),
     )
     # 加入更友善的新手引導敘述
     fig.add_annotation(

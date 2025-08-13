@@ -58,21 +58,28 @@ def run_backtest_from_dataframe(
     dd = strat.analyzers.drawdown.get_analysis()
     trades = strat.analyzers.trades.get_analysis()
 
-    plots = cerebro.plot(style="candlestick", volume=False, iplot=False)
-    # 嘗試從回傳結構中找出 Figure 並儲存第一張
-    def iter_figs(obj: Any):
-        if obj is None:
-            return
-        if hasattr(obj, "savefig"):
-            yield obj
-        elif isinstance(obj, (list, tuple)):
-            for x in obj:
-                yield from iter_figs(x)
-
-    figs: List[Any] = list(iter_figs(plots))
+    # 改為自繪資金曲線，避免 backtrader 原生 GUI 在 macOS 觸發 NSWindow 錯誤
     out_path = OUTPUTS_DIR / f"backtest_{symbol}.png"
-    if figs:
-        figs[0].savefig(out_path, dpi=180, bbox_inches="tight")
+    try:
+        # 嘗試用 analyzer 生成資金曲線
+        cerebro.addanalyzer(bt.analyzers.TimeReturn, _name="timereturns", timeframe=bt.TimeFrame.Days)
+    except Exception:
+        pass
+    # 若無 analyzer，使用收盤報酬近似
+    try:
+        tr = getattr(strat.analyzers, "timereturns").get_analysis()
+        sr = pd.Series(tr)
+        equity = (1.0 + sr.fillna(0)).cumprod()
+    except Exception:
+        equity = (1.0 + df['close'].pct_change().fillna(0)).cumprod()
+    plt.figure(figsize=(8, 3))
+    plt.plot(df['date'].iloc[-len(equity):], equity, label='Equity')
+    plt.title('Portfolio Equity (Approx)')
+    plt.xlabel('Date')
+    plt.ylabel('Equity')
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=160)
+    plt.close()
 
     # 亦可將指標輸出為文字檔與面板數據
     summary_path = OUTPUTS_DIR / f"backtest_{symbol}.txt"
