@@ -24,6 +24,7 @@ def _init_session_state() -> None:
         "guide_step": 1,
         "replay_value": 100,
         "replay_playing": False,
+        "replay_step": 2,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -129,6 +130,16 @@ def main():
                 st.session_state.replay_playing = False
             if fast.button("⏭ 快轉"):
                 st.session_state.replay_value = min(100, st.session_state.replay_value + 10)
+            st.slider("播放速度：每秒前進(%)", 1, 10, key="replay_step")
+            # 若正在播放，每次刷新自動前進並重繪
+            if st.session_state.replay_playing:
+                import time
+                st.session_state.replay_value = min(100, st.session_state.replay_value + int(st.session_state.replay_step))
+                time.sleep(1)
+                if st.session_state.replay_value < 100:
+                    st.experimental_rerun()
+                else:
+                    st.session_state.replay_playing = False
             overlays = st.multiselect("疊加指標 (可複選)", options=["EMA","BOLL","RSI"], default=["EMA","BOLL"]) 
             if st.button("生成圖表", key="btn_draw_chart"):
                 try:
