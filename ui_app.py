@@ -114,11 +114,17 @@ def main():
             explain = st.toggle("顯示新手註解", value=True)
             show_cards = st.toggle("顯示『建議解讀』小卡", value=True)
             show_signals = st.toggle("圖上標註買/賣與盈虧區間", value=True)
+            overlays = st.multiselect("疊加指標 (可複選)", options=["EMA","BOLL","RSI"], default=["EMA","BOLL"]) 
             if st.button("生成圖表"):
                 try:
                     symbol = normalize_hk_symbol(st.session_state.get("last_symbol", "700"))
                     df = load_cached(symbol)
-                    out = kline_with_mas(df, symbol, ma_periods=ma, explain=explain, show_signals=show_signals, show_trade_pnl=show_signals)
+                    out = kline_with_mas(
+                        df, symbol,
+                        ma_periods=ma, explain=explain,
+                        show_signals=show_signals, show_trade_pnl=show_signals,
+                        overlay_indicators=overlays,
+                    )
                     st.success(f"輸出：{out}")
                     st.components.v1.html(Path(out).read_text(encoding="utf-8"), height=600, scrolling=True)
                     st.session_state.task_plot = True

@@ -38,6 +38,11 @@ HANDDRAWN_CSS = """
     background: #fff !important;
     color:#1b1b1b !important;
   }
+  /* 修正 multiselect 標籤文字太暗問題 */
+  .stMultiSelect [data-baseweb="tag"] {
+    background: #FFF9E9 !important; color:#1b1b1b !important; border:2px dotted #2f2f2f !important;
+  }
+  .stMultiSelect [data-baseweb="tag"] * { color:#1b1b1b !important; }
   .stToggle { border:2px dashed #2f2f2f !important; }
 </style>
 """

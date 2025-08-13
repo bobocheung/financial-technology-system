@@ -16,6 +16,7 @@ def kline_with_mas(
     explain: bool = False,
     show_signals: bool = True,
     show_trade_pnl: bool = True,
+    overlay_indicators: Iterable[str] | None = None,
 ) -> Path:
     df = df.copy().sort_values("date")
     for p in ma_periods:
@@ -32,6 +33,32 @@ def kline_with_mas(
         fig.add_trace(
             go.Scatter(x=df["date"], y=df[f"ma{p}"], name=f"MA{p}")
         )
+
+    # 額外疊加指標
+    overlays = set((overlay_indicators or []))
+    if "EMA" in overlays:
+        import pandas as pd
+        for p in ma_periods:
+            df[f"ema{p}"] = df["close"].ewm(span=p, adjust=False).mean()
+            fig.add_trace(go.Scatter(x=df["date"], y=df[f"ema{p}"], name=f"EMA{p}", line=dict(dash="dot")))
+    if "BOLL" in overlays:
+        import pandas as pd
+        p = min(list(ma_periods))
+        ma = df["close"].rolling(p).mean()
+        std = df["close"].rolling(p).std()
+        upper = ma + 2 * std
+        lower = ma - 2 * std
+        fig.add_trace(go.Scatter(x=df["date"], y=upper, name=f"BOLL上軌", line=dict(color="#888")))
+        fig.add_trace(go.Scatter(x=df["date"], y=lower, name=f"BOLL下軌", line=dict(color="#888")))
+    if "RSI" in overlays:
+        # 在副圖用 RSI
+        delta = df["close"].diff()
+        gain = (delta.clip(lower=0)).rolling(14).mean()
+        loss = (-delta.clip(upper=0)).rolling(14).mean()
+        rs = gain / loss.replace(0, 1e-9)
+        rsi = 100 - 100 / (1 + rs)
+        fig.add_trace(go.Scatter(x=df["date"], y=rsi, name="RSI(14)", yaxis="y2"))
+        fig.update_layout(yaxis2=dict(overlaying="y", side="right", range=[0,100], showgrid=False, title="RSI"))
 
     # 均線交叉點提示：以最短與最長均線示範
     if len(list(ma_periods)) >= 2:

@@ -74,13 +74,32 @@ def run_backtest_from_dataframe(
     if figs:
         figs[0].savefig(out_path, dpi=180, bbox_inches="tight")
 
-    # 亦可將指標輸出為文字檔
+    # 亦可將指標輸出為文字檔與面板數據
     summary_path = OUTPUTS_DIR / f"backtest_{symbol}.txt"
     with open(summary_path, "w", encoding="utf-8") as f:
         f.write("回測摘要\n")
         f.write(f"Sharpe: {sharpe}\n")
         f.write(f"Max Drawdown: {dd.get('max', {})}\n")
         f.write(f"Trades: {trades}\n")
+
+    # 風險指標面板（CSV）：年化波動、Calmar、Sortino（近似）
+    import numpy as np
+    returns = df['close'].pct_change().dropna().values
+    daily_vol = float(np.std(returns))
+    ann_vol = daily_vol * np.sqrt(252)
+    max_dd = float(dd.get('max', {}).get('drawdown', 0.0)) / 100.0
+    sharpe_val = float(sharpe.get('sharperatio', 0) or 0)
+    calmar = (sharpe_val * ann_vol) / max(1e-9, abs(max_dd)) if max_dd != 0 else np.nan
+    sortino = sharpe_val  # 簡化：若需精確，另計下行波動
+    import pandas as pd
+    panel = pd.DataFrame([{
+        'ann_vol': ann_vol,
+        'max_drawdown': max_dd,
+        'sharpe': sharpe_val,
+        'calmar': calmar,
+        'sortino_approx': sortino,
+    }])
+    panel.to_csv(OUTPUTS_DIR / f"risk_panel_{symbol}.csv", index=False)
 
     # 輸出交易記錄供 UI 疊加
     trades_csv = OUTPUTS_DIR / f"trades_{symbol}.csv"
