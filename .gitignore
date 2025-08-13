@@ -1,0 +1,28 @@
+# Python / build
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+.DS_Store
+.env
+.vscode/
+.idea/
+*.log
+
+# Virtual env
+.venv/
+
+# Generated data/outputs/models
+data/
+outputs/
+models/
+lightning_logs/
+
+# Large artifacts
+*.ckpt
+*.png
+*.html
+
+# Streamlit cache
+.streamlit/
+

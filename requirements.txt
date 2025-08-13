@@ -1,0 +1,14 @@
+backtrader==1.9.78.123
+numpy>=1.26.4
+pandas>=2.2.2
+yfinance>=0.2.40
+matplotlib>=3.8.4
+plotly>=5.22.0
+scikit-learn>=1.4.2
+tqdm>=4.66.4
+streamlit>=1.37.0
+
+# PyTorch 及時序預測（若遇到相依問題，請參考 README 安裝提示）
+torch>=2.3.1
+pytorch-lightning==2.3.0
+pytorch-forecasting==1.4.0
